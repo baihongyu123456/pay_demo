@@ -34,89 +34,89 @@ import java.util.Map;
 @Slf4j
 @Controller
 public class AlipayController {
+    @Value("${alipay.appID}")
+    private String alipayAppID;
 
-        @Value("${alipay.appID}")
-        private String alipayAppID;
+    @Value("${alipay.partner}")
+    private String partner;
 
-        @Value("${alipay.partner}")
-        private String partner;
+    @Value("${alipay.private.key}")
+    private String alipayPrivateKey;
 
-        @Value("${alipay.private.key}")
-        private String alipayPrivateKey;
+    @Value("${alipay.public.key}")
+    private String alipayPublicKey;
 
-        @Value("${alipay.public.key}")
-        private String alipayPublicKey;
+    @Value("${alipay.sign.type}")
+    private String alipaySignType;
 
-        @Value("${alipay.sign.type}")
-        private String alipaySignType;
+    @Value("${alipay.notify.url}")
+    private String alipayNotifyUrl;
 
-        @Value("${alipay.notify.url}")
-        private String alipayNotifyUrl;
+    @Value("${alipay.url}")
+    private String alipayUrl;
 
-        @Value("${alipay.url}")
-        private String alipayUrl;
+    @Value("${wechat.appID}")
+    private String wechatAppID;
 
-        @Value("${wechat.appID}")
-        private String wechatAppID;
+    @Value("${wechat.mchid}")
+    private String wechatMchid;
 
-        @Value("${wechat.mchid}")
-        private String wechatMchid;
+    @Value("${wechat.secret}")
+    private String wechatSecret;
 
-        @Value("${wechat.secret}")
-        private String wechatSecret;
+    @Value("${wechat.notify.url}")
+    private String wechatNotifyUrl;
 
-        @Value("${wechat.notify.url}")
-        private String wechatNotifyUrl;
+    @Value("${wechat.orderpay.url}")
+    private String wechatOrderPayUrl;
 
-        @Value("${wechat.orderpay.url}")
-        private String wechatOrderPayUrl;
-
-        @Value("${wechat.queryorder.url}")
-        private String wechatQueryOrderUrl;
-
+    @Value("${wechat.queryorder.url}")
+    private String wechatQueryOrderUrl;
 
 
 
 
-        /**
-         * 支付宝支付下单接口
-         * @param amount
-         * @param token
-         * @return
-         * @author hongyubai
-         * @创建时间 2019年7月2日 09:52:36
-         */
-     @RequestMapping(value = "/alipay")
-     @ResponseBody
+    /**
+     * 支付宝支付下单接口
+     * @param amount
+     * @param token
+     * @return
+     * @author hongyubai
+     * @创建时间 2019年7月2日 09:52:36
+     */
+    @RequestMapping(value = "/alipay")
+    @ResponseBody
     public ApiResult zPay(String amount, String token){
-         //支付宝下单1.实例化客户端
-         AlipayClient alipayClient = new DefaultAlipayClient(alipayUrl, alipayAppID, alipayPrivateKey , "json", "utf-8", alipayPublicKey, alipaySignType);
-         //实例化具体API对应的request类,类名称和接口名称对应,当前调用接口名称：alipay.trade.app.pay
-         AlipayTradeAppPayRequest request = new AlipayTradeAppPayRequest();
-         //SDK已经封装掉了公共参数，这里只需要传入业务参数。以下方法为sdk的model入参方式(model和biz_content同时存在的情况下取biz_content)。
-         AlipayTradeAppPayModel model = new AlipayTradeAppPayModel();
-         String outtradeno = PartnerNoUtil.outtradeno();
-         //商品标题
-         model.setSubject("中天寓客支付宝测试");
-         //商家订单号
-         model.setOutTradeNo(outtradeno);
-         //超时关闭该订单时间
-         model.setTimeoutExpress("30m");
-         //订单总金额
-         model.setTotalAmount(amount);
-         //销售产品码，商家和支付宝签约的产品码，为固定值QUICK_MSECURITY_PAY
-         model.setProductCode("QUICK_MSECURITY_PAY");
-         request.setBizModel(model);
-         request.setNotifyUrl(alipayNotifyUrl);
-         //这里和普通的接口调用不同，使用的是sdkExecute
-         AlipayTradeAppPayResponse response = null;
-         try {
-             response = alipayClient.sdkExecute(request);
-         } catch (AlipayApiException e) {
-             e.printStackTrace();
-         }
-         String orderStr = response.getBody();
-         return new ApiResult().success(orderStr);
+        String orderStr="";
+        //支付宝下单1.实例化客户端
+        AlipayClient alipayClient = new DefaultAlipayClient(alipayUrl, alipayAppID, alipayPrivateKey , "json", "utf-8", alipayPublicKey, alipaySignType);
+        //实例化具体API对应的request类,类名称和接口名称对应,当前调用接口名称：alipay.trade.app.pay
+        AlipayTradeAppPayRequest request = new AlipayTradeAppPayRequest();
+        //SDK已经封装掉了公共参数，这里只需要传入业务参数。以下方法为sdk的model入参方式(model和biz_content同时存在的情况下取biz_content)。
+        AlipayTradeAppPayModel model = new AlipayTradeAppPayModel();
+        String outtradeno = PartnerNoUtil.outtradeno();
+        //商品标题
+        model.setSubject("中天寓客支付宝测试");
+        //商家订单号
+        model.setOutTradeNo(outtradeno);
+        //超时关闭该订单时间
+        model.setTimeoutExpress("30m");
+        //订单总金额
+        model.setTotalAmount(amount);
+        //销售产品码，商家和支付宝签约的产品码，为固定值QUICK_MSECURITY_PAY
+        model.setProductCode("QUICK_MSECURITY_PAY");
+        request.setBizModel(model);
+        request.setNotifyUrl(alipayNotifyUrl);
+        //这里和普通的接口调用不同，使用的是sdkExecute
+        AlipayTradeAppPayResponse response = null;
+        try {
+            response = alipayClient.sdkExecute(request);
+            orderStr = response.getBody();
+        } catch (AlipayApiException e) {
+            e.printStackTrace();
+            return new ApiResult().failure();
+        }
+        return new ApiResult().success(orderStr);
     }
 
 
@@ -171,43 +171,43 @@ public class AlipayController {
         Wpay wpay = new Wpay();
         //获取微信支付的相关参数
         try {
-        Map<String, String> parm = new HashMap<String, String>(16);
-        parm.put("appid",wechatAppID);
-        parm.put("mch_id",wechatMchid);
-        parm.put("nonce_str", PayUtil.getNonceStr());
-        parm.put("out_trade_no", PayUtil.getTradeNo());
-        parm.put("body", "中天寓客-微信支付");
-        parm.put("total_fee", amount);
-        parm.put("spbill_create_ip", PayUtil.getRemoteAddrIp(req));
-        parm.put("notify_url", wechatNotifyUrl);
-        parm.put("trade_type", "APP");
-        parm.put("sign", PayUtil.getSign(parm, wechatSecret));
-        //将得到的参数拼成xml
-        String requestXml = PayUtil.getRequestXml(parm);
-        //调用统一下单接口
+            Map<String, String> parm = new HashMap<String, String>(16);
+            parm.put("appid",wechatAppID);
+            parm.put("mch_id",wechatMchid);
+            parm.put("nonce_str", PayUtil.getNonceStr());
+            parm.put("out_trade_no", PayUtil.getTradeNo());
+            parm.put("body", "中天寓客-微信支付");
+            parm.put("total_fee", amount);
+            parm.put("spbill_create_ip", PayUtil.getRemoteAddrIp(req));
+            parm.put("notify_url", wechatNotifyUrl);
+            parm.put("trade_type", "APP");
+            parm.put("sign", PayUtil.getSign(parm, wechatSecret));
+            //将得到的参数拼成xml
+            String requestXml = PayUtil.getRequestXml(parm);
+            //调用统一下单接口
             String result = PayUtil.httpsRequest(wechatOrderPayUrl, "POST", requestXml);
             String xmlFormat = XmlUtil.xmlFormat(parm, false);
             Map<String, String> restmap = XmlUtil.xmlParse(result);
-         //判断是否调用这个接口成功,并返回对应的wpay
-        if(CollectionUtil.isNotEmpty(restmap) && "SUCCESS".equals(restmap.get("result_code"))){
-            String nonceStr = PayUtil.getNonceStr();
-            String time = PayUtil.payTimestamp();
-            Map<String, String> payMap = new HashMap<String, String>();
-            payMap.put("appid", wechatAppID);
-            payMap.put("partnerid", wechatMchid);
-            payMap.put("prepayid", restmap.get("prepay_id"));
-            payMap.put("package", "Sign=WXPay");
-            payMap.put("noncestr", nonceStr);
-            payMap.put("timestamp", time);
-            String sign = PayUtil.getSign(payMap, wechatSecret);
-            wpay.setAppid(wechatAppID);
-            wpay.setPartnerid(wechatMchid);
-            wpay.setPrepayid(restmap.get("prepay_id"));
-            wpay.setPackageValue("Sign=WXPay");
-            wpay.setSign(sign);
-            wpay.setNoncestr(nonceStr);
-            wpay.setTimestamp(time);
-        }
+            //判断是否调用这个接口成功,并返回对应的wpay
+            if(CollectionUtil.isNotEmpty(restmap) && "SUCCESS".equals(restmap.get("result_code"))){
+                String nonceStr = PayUtil.getNonceStr();
+                String time = PayUtil.payTimestamp();
+                Map<String, String> payMap = new HashMap<String, String>();
+                payMap.put("appid", wechatAppID);
+                payMap.put("partnerid", wechatMchid);
+                payMap.put("prepayid", restmap.get("prepay_id"));
+                payMap.put("package", "Sign=WXPay");
+                payMap.put("noncestr", nonceStr);
+                payMap.put("timestamp", time);
+                String sign = PayUtil.getSign(payMap, wechatSecret);
+                wpay.setAppid(wechatAppID);
+                wpay.setPartnerid(wechatMchid);
+                wpay.setPrepayid(restmap.get("prepay_id"));
+                wpay.setPackageValue("Sign=WXPay");
+                wpay.setSign(sign);
+                wpay.setNoncestr(nonceStr);
+                wpay.setTimestamp(time);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -302,22 +302,32 @@ public class AlipayController {
     public ApiResult alipayIfpay(String token,String out_trade_no){
         //1.先根据订单号查询该订单是否支付成功，成功即接到异步回调返回的支付成功。直接返回支付成功。如果支付状态为不成功，调用查询接口来判断是否支付成功
         try {
-          Map<String,String> parm = new HashMap<String, String>(16);
-          parm.put("appid",wechatAppID);
-          parm.put("mch_id",wechatMchid);
-          parm.put("out_trade_no",out_trade_no);
-          parm.put("nonce_str",PayUtil.getNonceStr());
-          parm.put("sign",PayUtil.getSign(parm,wechatSecret));
-          String params = XmlUtil.xmlFormat(parm, false);
-          String xml = PayUtil.httpsRequest(wechatQueryOrderUrl, "POST", params);
-          Map<String, String> restmap = XmlUtil.xmlParse(xml);
-          if("SUCCESS".equals(restmap.get("result_code"))&&"SUCCESS".equals(restmap.get("trade_state"))){
-              return new ApiResult().success("支付成功");
-          }
+            Map<String,String> parm = new HashMap<String, String>(16);
+            parm.put("appid",wechatAppID);
+            parm.put("mch_id",wechatMchid);
+            parm.put("out_trade_no",out_trade_no);
+            parm.put("nonce_str",PayUtil.getNonceStr());
+            parm.put("sign",PayUtil.getSign(parm,wechatSecret));
+            String params = XmlUtil.xmlFormat(parm, false);
+            String xml = PayUtil.httpsRequest(wechatQueryOrderUrl, "POST", params);
+            Map<String, String> restmap = XmlUtil.xmlParse(xml);
+            if("SUCCESS".equals(restmap.get("result_code"))&&"SUCCESS".equals(restmap.get("trade_state"))){
+                return new ApiResult().success("支付成功");
+            }
         }catch (Exception e){
             return new ApiResult().failure("支付失败");
 
         }
         return  new ApiResult().success("支付成功");
+    }
+
+
+
+
+
+    @RequestMapping("/hello")
+    @ResponseBody
+    public String hello(){
+        return "hello";
     }
 }
