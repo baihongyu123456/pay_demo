@@ -6,7 +6,9 @@ import com.alipay.api.DefaultAlipayClient;
 import com.alipay.api.domain.AlipayTradeAppPayModel;
 import com.alipay.api.internal.util.AlipaySignature;
 import com.alipay.api.request.AlipayTradeAppPayRequest;
+import com.alipay.api.request.AlipayTradeQueryRequest;
 import com.alipay.api.response.AlipayTradeAppPayResponse;
+import com.alipay.api.response.AlipayTradeQueryResponse;
 import com.ztzd.common.utils.ApiResult;
 import com.ztzd.ztzdpay.alipay.model.Wpay;
 import com.ztzd.ztzdpay.alipay.utils.*;
@@ -69,6 +71,9 @@ public class AlipayController {
         @Value("${wechat.orderpay.url}")
         private String wechatOrderPayUrl;
 
+        @Value("${wechat.queryorder.url}")
+        private String wechatQueryOrderUrl;
+
 
 
 
@@ -79,7 +84,7 @@ public class AlipayController {
          * @param token
          * @return
          * @author hongyubai
-         * @创建时间 2017年9月6日10:17:52
+         * @创建时间 2019年7月2日 09:52:36
          */
      @RequestMapping(value = "/alipay")
      @ResponseBody
@@ -122,7 +127,7 @@ public class AlipayController {
      * @param response
      * @return
      * @author hongyubai
-     * @创建时间 2019年7月3日09:35:40
+     * @创建时间 2019年7月2日14:35:40
      */
     @RequestMapping(value = "/alipayNotify")
     @ResponseBody
@@ -158,7 +163,7 @@ public class AlipayController {
      * @param amount
      * @return
      * @author hongyubai
-     * @创建时间 2019年7月3日10:17:52
+     * @创建时间 2019年7月3日10:29:52
      */
     @RequestMapping(value = "/wechatorderpay")
     @ResponseBody
@@ -216,7 +221,7 @@ public class AlipayController {
      * @param response
      * @return
      * @author hongyubai
-     * @创建时间 2019年7月3日10:17:52
+     * @创建时间 2019年7月3日11:17:06
      */
     @RequestMapping(value = "/wechatNotify")
     @ResponseBody
@@ -249,4 +254,70 @@ public class AlipayController {
     }
 
 
+    /**
+     * 支付宝查询接口，查询是否支付成功
+     * @param token
+     * @param out_trade_no
+     * @return
+     * @author hongyubai
+     * @创建时间 2019年7月3日10:17:52
+     */
+    @RequestMapping(value = "/wechatIfpay")
+    @ResponseBody
+    public ApiResult wechatIfpay(String token,String out_trade_no){
+        //1.先根据订单号查询该订单是否支付成功，成功即接到异步回调返回的支付成功。直接返回支付成功。如果支付状态为不成功，调用查询接口来判断是否支付成功
+        try {
+            AlipayClient alipayClient = new DefaultAlipayClient(alipayUrl,alipayAppID,alipayPrivateKey,"json","utf-8",alipayPublicKey,alipaySignType);
+            AlipayTradeQueryRequest request = new AlipayTradeQueryRequest();
+            request.setBizContent("{" +"\"out_trade_no\":"+out_trade_no+"}");
+            AlipayTradeQueryResponse response= alipayClient.execute(request);
+            if(response.isSuccess()){
+                //交易状态
+                String tradeStatus = response.getTradeStatus();
+                if("TRADE_SUCCESS".equals(tradeStatus)){
+                    return new ApiResult().success();
+                }
+                //交易金额
+                String totalAmount = response.getTotalAmount();
+            }else {
+                return new ApiResult().success("支付失败");
+            }
+        }catch (Exception e){
+            return new ApiResult().failure("支付失败");
+
+        }
+        return  new ApiResult().success("支付成功");
+    }
+
+    /**
+     * 微信查询接口，查询是否支付成功
+     * @param token
+     * @param out_trade_no
+     * @return
+     * @author hongyubai
+     * @创建时间 2019年7月3日10:17:52
+     */
+    @RequestMapping(value = "/alipayIfpay")
+    @ResponseBody
+    public ApiResult alipayIfpay(String token,String out_trade_no){
+        //1.先根据订单号查询该订单是否支付成功，成功即接到异步回调返回的支付成功。直接返回支付成功。如果支付状态为不成功，调用查询接口来判断是否支付成功
+        try {
+          Map<String,String> parm = new HashMap<String, String>(16);
+          parm.put("appid",wechatAppID);
+          parm.put("mch_id",wechatMchid);
+          parm.put("out_trade_no",out_trade_no);
+          parm.put("nonce_str",PayUtil.getNonceStr());
+          parm.put("sign",PayUtil.getSign(parm,wechatSecret));
+          String params = XmlUtil.xmlFormat(parm, false);
+          String xml = PayUtil.httpsRequest(wechatQueryOrderUrl, "POST", params);
+          Map<String, String> restmap = XmlUtil.xmlParse(xml);
+          if("SUCCESS".equals(restmap.get("result_code"))&&"SUCCESS".equals(restmap.get("trade_state"))){
+              return new ApiResult().success("支付成功");
+          }
+        }catch (Exception e){
+            return new ApiResult().failure("支付失败");
+
+        }
+        return  new ApiResult().success("支付成功");
+    }
 }
