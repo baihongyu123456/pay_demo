@@ -1,14 +1,20 @@
 package com.ztzd.ztzdpay.alipay.controller;
 
+import com.alibaba.fastjson.JSONObject;
 import com.alipay.api.AlipayApiException;
 import com.alipay.api.AlipayClient;
 import com.alipay.api.DefaultAlipayClient;
 import com.alipay.api.domain.AlipayTradeAppPayModel;
+import com.alipay.api.domain.AlipayTradeRefundModel;
 import com.alipay.api.internal.util.AlipaySignature;
 import com.alipay.api.request.AlipayTradeAppPayRequest;
+import com.alipay.api.request.AlipayTradeFastpayRefundQueryRequest;
 import com.alipay.api.request.AlipayTradeQueryRequest;
+import com.alipay.api.request.AlipayTradeRefundRequest;
 import com.alipay.api.response.AlipayTradeAppPayResponse;
+import com.alipay.api.response.AlipayTradeFastpayRefundQueryResponse;
 import com.alipay.api.response.AlipayTradeQueryResponse;
+import com.alipay.api.response.AlipayTradeRefundResponse;
 import com.ztzd.common.utils.ApiResult;
 import com.ztzd.ztzdpay.alipay.model.Wpay;
 import com.ztzd.ztzdpay.alipay.utils.*;
@@ -16,6 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import javax.servlet.ServletInputStream;
@@ -72,6 +80,12 @@ public class AlipayController {
 
     @Value("${wechat.queryorder.url}")
     private String wechatQueryOrderUrl;
+
+    @Value("${wechat.refund.url}")
+    private String wechatRefundUrl;
+
+    @Value("${wechat.refund.query.url}")
+    private String wechatRefundQueryUrl;
 
 
 
@@ -321,9 +335,230 @@ public class AlipayController {
         return  new ApiResult().success("支付成功");
     }
 
+    /**
+     * 支付宝退款接口
+     * @param token          身份标识
+     * @param out_trade_no   订单支付时传入的商户订单号,不能和 trade_no同时为空。
+     * @param trade_no       支付宝交易号，和商户订单号不能同时为空
+     * @param refund_amount  需要退款的金额，该金额不能大于订单金额,单位为元，支持两位小数
+     * @param refund_reason  退款的原因说明
+     * @param out_request_no 标识一次退款请求，同一笔交易多次退款需要保证唯一，如需部分退款，则此参数必传。
+     * @return
+     * @throws AlipayApiException
+     */
+    @RequestMapping(value="alpayRefund",method= RequestMethod.POST)
+    @ResponseBody
+    public JSONObject alpayRefund(String token,@RequestParam(value="out_trade_no",required=true) String out_trade_no,
+                             @RequestParam(value="trade_no") String trade_no,@RequestParam(value="refund_amount",required=true) Double refund_amount,
+                             @RequestParam(value="refund_reason",required=false) String refund_reason,@RequestParam(value="out_request_no",required=true) String out_request_no,
+                             @RequestParam(value="operator_id",required=false) String operator_id,@RequestParam(value="store_id",required=false) String store_id,
+                             @RequestParam(value="terminal_id",required=false) String terminal_id) throws AlipayApiException{
+        JSONObject obj = new JSONObject();
+       try {
+           AlipayClient alipayClient = new DefaultAlipayClient(alipayUrl,alipayAppID,alipayPrivateKey,"json","utf-8",alipayPublicKey,alipaySignType);
+           AlipayTradeRefundRequest request = new AlipayTradeRefundRequest();
+
+           //SDK已经封装掉了公共参数，这里只需要传入业务参数。以下方法为sdk的model入参方式(model和biz_content同时存在的情况下取biz_content)。
+           //可用方法AlipayTradeRefundModel refundModel = new AlipayTradeRefundModel();来存入到model中.然后用request.setBizModel();请求
+			/*request.setBizContent("{" +
+			"\"out_trade_no\":\"20150320010101001\"," +
+			"\"trade_no\":\"2014112611001004680073956707\"," +
+			"\"refund_amount\":200.12," +
+			"\"refund_reason\":\"正常退款\"," +
+			"\"out_request_no\":\"HZ01RF001\"," +
+			"\"operator_id\":\"OP001\"," +
+			"\"store_id\":\"NJ_S_001\"," +
+			"\"terminal_id\":\"NJ_T_001\"" +
+			"  }");*/
+           JSONObject jsonObject = new JSONObject();
+           //订单支付时传入的商户订单号,不能和 trade_no同时为空。
+           jsonObject.put("out_trade_no", out_trade_no);
+           //支付宝交易号，和商户订单号不能同时为空
+           jsonObject.put("trade_no", trade_no);
+           //需要退款的金额，该金额不能大于订单金额,单位为元，支持两位小数
+           jsonObject.put("refund_amount", refund_amount);
+           //退款的原因说明
+           jsonObject.put("refund_reason", refund_reason);
+           //标识一次退款请求，同一笔交易多次退款需要保证唯一，如需部分退款，则此参数必传。
+           jsonObject.put("out_request_no", out_request_no);
+           //商户的操作员编号
+           jsonObject.put("operator_id", operator_id);
+           //商户的门店编号
+           jsonObject.put("store_id", store_id);
+           //商户的终端编号
+           jsonObject.put("terminal_id", terminal_id);
+           request.setBizContent(jsonObject.toString());
+           AlipayTradeRefundResponse response = alipayClient.execute(request);
+           if(response.isSuccess()){
+//			System.out.println("调用成功");
+           } else {
+               System.out.println("调用失败");
+           }
+           obj.put("result", "提现成功");
+           obj.put("code", 0);
+       }catch (Exception e){
+
+       }
+        return obj;
+    }
 
 
 
+
+    /**
+     * 微信退款 需要双向证书验证
+     *
+     * @param request
+     * @param response
+     * @param tradeno 微信订单号
+     * @param orderno  商家订单号
+     * @param callback
+     */
+    @RequestMapping(value = "/wechatRefund", method = RequestMethod.POST)
+    public ApiResult wechatRefund(HttpServletRequest request, HttpServletResponse response, String tradeno, String orderno,
+                               String callback) {
+        log.info("[/wechatRefund]");
+        if (StringUtil.isEmpty(tradeno) && StringUtil.isEmpty(orderno)) {
+            return  new ApiResult().success("微信订单号或商家订单号不能为空");
+        }
+
+        try {
+            Map<String, String> restmap = null;
+
+            Map<String, String> parm = new HashMap<String, String>();
+            parm.put("appid", wechatAppID);
+            parm.put("mch_id", wechatMchid);
+            parm.put("nonce_str", PayUtil.getNonceStr());
+            parm.put("transaction_id", tradeno);
+            //订单号
+            parm.put("out_trade_no", orderno);
+            //退款单号
+            parm.put("out_refund_no", PayUtil.getRefundNo());
+            // 订单总金额 从业务逻辑获取
+            parm.put("total_fee", "10");
+            // 退款金额
+            parm.put("refund_fee", "10");
+            parm.put("op_user_id", wechatMchid);
+            //退款方式
+            parm.put("refund_account", "REFUND_SOURCE_RECHARGE_FUNDS");
+            parm.put("sign", PayUtil.getSign(parm, wechatSecret));
+
+//           String xml  = XmlUtil.xmlFormat(parm,false);
+            //将请求参数初始化证书相关
+           // String ssl = PayUtil.ssl(wechatRefundUrl, xml, request, wechatMchid);
+            String restxml = PayUtil.post(wechatRefundUrl, XmlUtil.xmlFormat(parm, false));
+            restmap = XmlUtil.xmlParse(restxml);
+            Map<String, String> refundMap = new HashMap<>();
+        if (CollectionUtil.isNotEmpty(restmap) && "SUCCESS".equals(restmap.get("result_code"))) {
+            refundMap.put("transaction_id", restmap.get("transaction_id"));
+            refundMap.put("out_trade_no", restmap.get("out_trade_no"));
+            refundMap.put("refund_id", restmap.get("refund_id"));
+            refundMap.put("out_refund_no", restmap.get("out_refund_no"));
+            log.info("订单退款：订单" + restmap.get("out_trade_no") + "退款成功，商户退款单号" + restmap.get("out_refund_no") + "，微信退款单号"
+                    + restmap.get("refund_id"));
+            return new ApiResult().success("退款成功");
+
+        } else {
+            if (CollectionUtil.isNotEmpty(restmap)) {
+                log.info("订单退款失败：" + restmap.get("err_code") + ":" + restmap.get("err_code_des"));
+            }
+            return new ApiResult().success("退款失败--"+restmap.get("err_code_des"));
+        }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+           return new ApiResult().failure("退款失败");
+        }
+    }
+
+
+    /**
+     * 支付宝退款查询接口
+     * @param token          身份标识
+     * @param out_trade_no   订单支付时传入的商户订单号,不能和 trade_no同时为空。
+     * @param trade_no       支付宝交易号，和商户订单号不能同时为空
+     * @return
+     * @throws AlipayApiException
+     */
+    @RequestMapping(value="alpayRefundQuery",method= RequestMethod.POST)
+    @ResponseBody
+    public ApiResult alpayRefundQuery(String token,@RequestParam(value="out_trade_no",required=true) String out_trade_no,
+                             @RequestParam(value="trade_no") String trade_no) {
+
+        JSONObject obj = new JSONObject();
+        try {
+            AlipayClient alipayClient = new DefaultAlipayClient(alipayUrl,alipayAppID,alipayPrivateKey,"json","utf-8",alipayPublicKey,alipaySignType);
+            AlipayTradeFastpayRefundQueryRequest request = new AlipayTradeFastpayRefundQueryRequest();
+            /*request.setBizContent("{" +
+                    "\"trade_no\":\"20150320010101001\"," +
+                    "\"out_trade_no\":\"2014112611001004680073956707\"," +
+                    "\"out_request_no\":\"2014112611001004680073956707\"," +
+                    "\"org_pid\":\"2088101117952222\"" +
+                    "  }");*/
+
+            JSONObject jsonObject = new JSONObject();
+            //订单支付时传入的商户订单号,不能和 trade_no同时为空。
+            jsonObject.put("out_trade_no", out_trade_no);
+            //支付宝交易号，和商户订单号不能同时为空
+            jsonObject.put("trade_no", trade_no);
+            //请求退款接口时，传入的退款请求号，如果在退款请求时未传入，则该值为创建交易时的外部交易号
+            String out_request_no = PayUtil.getNonceStr();
+            jsonObject.put("out_request_no", out_request_no);
+            request.setBizContent(jsonObject.toString());
+            AlipayTradeFastpayRefundQueryResponse response = alipayClient.execute(request);
+
+            if(response.isSuccess()&&("REFUND_SUCCESS".equals(response.getRefundStatus())||"".equals(response.getRefundStatus()))){
+                return new ApiResult().success("退款成功");
+            } else {
+                System.out.println("调用失败");
+                return new ApiResult().success("退款失败");
+            }
+
+        }catch (Exception e){
+            return  new ApiResult().failure("退款失败");
+        }
+    }
+    /**
+     * 微信退款查询接口
+     * @param transaction_id       微信订单号
+     * @param out_trade_no         商户订单号
+     * @param out_refund_no        商户退款单号
+     * @param refund_id            微信退款单号
+     * @throws AlipayApiException
+     */
+    @RequestMapping(value="wechatRefundQuery",method= RequestMethod.POST)
+    @ResponseBody
+    public ApiResult wechatRefundQuery(HttpServletRequest request, HttpServletResponse response, String transaction_id,
+                                       String out_trade_no, String out_refund_no, String refund_id, String callback) {
+
+        if (StringUtil.isEmpty(transaction_id) && StringUtil.isEmpty(out_trade_no)
+                && StringUtil.isEmpty(out_refund_no) && StringUtil.isEmpty(refund_id)) {
+            throw new NullPointerException();
+        }
+
+        Map<String, String> restmap = null;
+        try {
+            Map<String, String> parm = new HashMap<String, String>();
+            parm.put("appid", wechatAppID);
+            parm.put("mch_id", wechatMchid);
+            parm.put("transaction_id", transaction_id);
+            parm.put("out_trade_no", out_trade_no);
+            parm.put("refund_id", refund_id);
+            parm.put("out_refund_no", out_refund_no);
+            parm.put("nonce_str", PayUtil.getNonceStr());
+            parm.put("sign", PayUtil.getSign(parm, wechatSecret));
+
+            String restxml = PayUtil.post(wechatRefundQueryUrl, XmlUtil.xmlFormat(parm, false));
+            restmap = XmlUtil.xmlParse(restxml);
+            if (CollectionUtil.isNotEmpty(restmap) && "SUCCESS".equals(restmap.get("result_code")) && "SUCCESS".equals(restmap.get("result_code"))) {
+                return new ApiResult().success("退款成功");
+            }else{
+                return  new ApiResult().success("退款失败");
+            }
+        }catch (Exception e){
+            return  new ApiResult().failure("退款失败");
+        }
+    }
 
     @RequestMapping("/hello")
     @ResponseBody
