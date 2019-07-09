@@ -7,14 +7,8 @@ import com.alipay.api.DefaultAlipayClient;
 import com.alipay.api.domain.AlipayTradeAppPayModel;
 import com.alipay.api.domain.AlipayTradeRefundModel;
 import com.alipay.api.internal.util.AlipaySignature;
-import com.alipay.api.request.AlipayTradeAppPayRequest;
-import com.alipay.api.request.AlipayTradeFastpayRefundQueryRequest;
-import com.alipay.api.request.AlipayTradeQueryRequest;
-import com.alipay.api.request.AlipayTradeRefundRequest;
-import com.alipay.api.response.AlipayTradeAppPayResponse;
-import com.alipay.api.response.AlipayTradeFastpayRefundQueryResponse;
-import com.alipay.api.response.AlipayTradeQueryResponse;
-import com.alipay.api.response.AlipayTradeRefundResponse;
+import com.alipay.api.request.*;
+import com.alipay.api.response.*;
 import com.ztzd.common.utils.ApiResult;
 import com.ztzd.ztzdpay.alipay.model.Wpay;
 import com.ztzd.ztzdpay.alipay.utils.*;
@@ -29,6 +23,14 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -86,6 +88,9 @@ public class AlipayController {
 
     @Value("${wechat.refund.query.url}")
     private String wechatRefundQueryUrl;
+
+    @Value("${wechat.downloadbill.url}")
+    private String wechatDownloadbillUrl;
 
 
 
@@ -334,7 +339,6 @@ public class AlipayController {
         }
         return  new ApiResult().success("支付成功");
     }
-
     /**
      * 支付宝退款接口
      * @param token          身份标识
@@ -518,6 +522,7 @@ public class AlipayController {
             return  new ApiResult().failure("退款失败");
         }
     }
+
     /**
      * 微信退款查询接口
      * @param transaction_id       微信订单号
@@ -560,9 +565,127 @@ public class AlipayController {
         }
     }
 
-    @RequestMapping("/hello")
+    /**
+     * 支付宝账单下载接口
+     * @param bill_type  账单类型trade、signcustomer；trade指商户基于支付宝交易收单的业务账单；signcustomer是指基于商户支付宝余额收入及支出等资金变动的帐务账单；
+     * @param bill_date  账单时间：日账单格式为yyyy-MM-dd，月账单格式为yyyy-MM。
+     *
+     */
+    @RequestMapping(value="/alipayOrderDownload",method= RequestMethod.POST)
     @ResponseBody
-    public String hello(){
-        return "hello";
+    public ApiResult alipayOrderDownload(String bill_type,String bill_date) throws Exception{
+
+        AlipayClient alipayClient = new DefaultAlipayClient(alipayUrl,alipayAppID,alipayPrivateKey,"json","utf-8",alipayPublicKey,alipaySignType);
+        AlipayDataDataserviceBillDownloadurlQueryRequest request = new AlipayDataDataserviceBillDownloadurlQueryRequest();
+        JSONObject jsonObject = new JSONObject();
+
+        jsonObject.put("bill_type", bill_type);
+        //商户的门店编号
+        jsonObject.put("bill_date", bill_date);
+        //商户的终端编号
+        request.setBizContent(jsonObject.toString());
+        AlipayDataDataserviceBillDownloadurlQueryResponse response = alipayClient.execute(request);
+        if(response.isSuccess()){
+            System.out.println("调用成功");
+            //将接口返回的对账单下载地址传入urlStr
+            String urlStr=response.getBillDownloadUrl();
+            this.downBill(urlStr);
+            return  new ApiResult().success("下载账单成功");
+        } else {
+            System.out.println("调用失败");
+            return new ApiResult().failure("下载账单失败");
+        }
+    }
+
+    /**
+     * 下载账单文件：
+     * @return response
+     */
+    public String downBill(String billDownloadUrl){
+        long filename=System.currentTimeMillis();
+//指定希望保存的文件路径
+        String filePath = "E:/alipay/billfile/fund_bill_"+filename+".zip";
+        URL url = null;
+        HttpURLConnection httpUrlConnection = null;
+        InputStream fis = null;
+        FileOutputStream fos = null;
+        try {
+            url = new URL(billDownloadUrl);
+            httpUrlConnection = (HttpURLConnection) url.openConnection();
+            httpUrlConnection.setConnectTimeout(5 * 1000);
+            httpUrlConnection.setDoInput(true);
+            httpUrlConnection.setDoOutput(true);
+            httpUrlConnection.setUseCaches(false);
+            httpUrlConnection.setRequestMethod("GET");
+            httpUrlConnection.setRequestProperty("Charsert", "UTF-8");
+            httpUrlConnection.connect();
+            fis = httpUrlConnection.getInputStream();
+            byte[] temp = new byte[1024];
+            int b;
+            fos = new FileOutputStream(new File(filePath));
+            while ((b = fis.read(temp)) != -1) {
+                fos.write(temp, 0, b);
+                fos.flush();
+            }
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if(fis!=null){
+                    fis.close();
+                }
+                if(fos!=null) {
+                    fos.close();
+                }
+                if(httpUrlConnection!=null){
+                    httpUrlConnection.disconnect();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return null;
+    }
+
+
+
+    /**
+     * 微信查询对账单信息接口
+     * @param bill_date 下载对账单的日期，格式：20140603
+     * @param bill_type 账单类型  ALL（默认值），返回当日所有订单信息（不含充值退款订单）
+     *                            SUCCESS，返回当日成功支付的订单（不含充值退款订单）
+     *                            REFUND，返回当日退款订单（不含充值退款订单）
+     *                            RECHARGE_REFUND，返回当日充值退款订单
+     * @param tar_type 压缩账单   非必传参数，固定值：GZIP，返回格式为.gzip的压缩包账单。不传则默认为数据流形式。
+     *
+     *
+     * @return
+     * @author hongyubai
+     * @创建时间 2019年7月3日10:50:38
+     */
+    @RequestMapping(value = "/wechatDownloadbillUrl")
+    @ResponseBody
+    public ApiResult wechatDownloadbillUrl(String bill_date,String bill_type,String tar_type){
+        //1.先根据订单号查询该订单是否支付成功，成功即接到异步回调返回的支付成功。直接返回支付成功。如果支付状态为不成功，调用查询接口来判断是否支付成功
+        try {
+            Map<String,String> parm = new HashMap<String, String>(16);
+            parm.put("bill_date",bill_date);
+            parm.put("bill_type",bill_type);
+            parm.put("tar_type",tar_type);
+            parm.put("appid",wechatAppID);
+            parm.put("mch_id",wechatMchid);
+            parm.put("nonce_str",PayUtil.getNonceStr());
+            parm.put("sign",PayUtil.getSign(parm,wechatSecret));
+            String params = XmlUtil.xmlFormat(parm, false);
+            String xml = PayUtil.httpsRequest(wechatDownloadbillUrl, "POST", params);
+            Map<String, String> restmap = XmlUtil.xmlParse(xml);
+
+        }catch (Exception e){
+            return new ApiResult().failure("支付失败");
+
+        }
+        return  new ApiResult().success("支付成功");
     }
 }
